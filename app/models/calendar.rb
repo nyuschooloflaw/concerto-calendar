@@ -39,7 +39,8 @@ class Calendar < DynamicContent
   DISPLAY_FORMATS = { 
     "List (Multiple)" => "headlines", 
     "Detailed (Single)" => "detailed",
-    "Today (Multiple)" => "today"
+    "Today (Multiple)" => "today",
+    "Upcoming (Multiple)" => "this_week"
   }
 
   CALENDAR_SOURCES = { # exclude RSS and ATOM since cant get individual fields
@@ -87,6 +88,16 @@ class Calendar < DynamicContent
           htmltext = HtmlText.new()
           htmltext.name = "#{result.name} (#{index+1})"
           htmltext.data = today_to_html(items, day_format, time_format)
+          contents << htmltext
+        end
+      when 'this_week' # up to 10 events in the next 5 days per slide
+        today = Date.today
+        result.items.delete_if { | items | items.start_time.to_date <= today } # delete events today or earlier
+        result.items.delete_if { | items | items.start_time.to_date > today + 5 } #delete events more than 5 days out
+        result.items.each_slice(10).with_index do |items, index|
+          htmltext = HtmlText.new()
+          htmltext.name = "#{result.name} (#{index+1})"
+          htmltext.data = looking_ahead_to_html(items, day_format, time_format)
           contents << htmltext
         end
       else
@@ -262,6 +273,30 @@ class Calendar < DynamicContent
       if counter == 5
         html << "</td>"
         html << "<td>"
+      end
+    end
+    html << "</td></tr></table>"
+    return html.join("")
+  end
+
+  # display upcoming events in a particular format
+  def looking_ahead_to_html(items, day_format, time_format)
+    html = []
+    today = Date.today
+    html << "<table><tr><th colspan='2'><h1>Looking Ahead</h1></th></tr><tr><td>"
+    counter = 0
+    items.each do |item|
+      start_time = item.start_time.strftime(time_format) unless item.start_time.nil?
+      end_time = item.end_time.strftime(time_format) unless item.end_time.nil?
+      start_day = item.start_time.strftime("%A")
+      location = item.location.nil? ? "Location: TBD" : item.location
+      html << "<h3>#{item.name}</h3>"
+      html << (end_time.nil? ? "<p><span style='color: \#507e8e; font-weight: bold'>#{start_day}</span> | #{location}</p>" : 
+        "<p><span style='color: \#507e8e; font-weight: bold'>#{start_day}</span> #{start_time} - #{end_time} | #{location}</p>") unless start_time == end_time
+      counter += 1
+      if counter == 5
+        html << "</td>"
+        html << "<td style='width: 50%'>"
       end
     end
     html << "</td></tr></table>"
