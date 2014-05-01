@@ -35,10 +35,13 @@ class Calendar < DynamicContent
   end
 
   DISPLAY_NAME = 'Calendar'
+  
   DISPLAY_FORMATS = { 
     "List (Multiple)" => "headlines", 
-    "Detailed (Single)" => "detailed" 
+    "Detailed (Single)" => "detailed",
+    "Today (Multiple)" => "today"
   }
+
   CALENDAR_SOURCES = { # exclude RSS and ATOM since cant get individual fields
     "Google" => "google", 
     "iCal" => "ical", 
@@ -75,6 +78,15 @@ class Calendar < DynamicContent
           htmltext = HtmlText.new()
           htmltext.name = "#{result.name} (#{index+1})"
           htmltext.data = item_to_html(item, day_format, time_format)
+          contents << htmltext
+        end
+      when 'today' # up to 10 of the current day's events
+        today = Date.today
+        result.items.delete_if { |items| items.start_time.to_date != today }
+        result.items.each_slice(10).with_index do |items, index|
+          htmltext = HtmlText.new()
+          htmltext.name = "#{result.name} (#{index+1})"
+          htmltext.data = today_to_html(items, day_format, time_format)
           contents << htmltext
         end
       else
@@ -231,6 +243,28 @@ class Calendar < DynamicContent
       last_date = item.start_time.to_date
     end
     html << "</dl>" if !last_date.nil?
+    return html.join("")
+  end
+
+  # display today's events in a particular format
+  def today_to_html(items, day_format, time_format)
+    html = []
+    today = Date.today
+    html << "<table><tr><th colspan='2'><h1>#{today.strftime('%A')}</h1> <h2>#{today.strftime('%B %e, %Y')}</h2></th></tr><tr><td>"
+    counter = 0
+    items.each do |item|
+      start_time = item.start_time.strftime(time_format) unless item.start_time.nil?
+      end_time = item.end_time.strftime(time_format) unless item.end_time.nil?
+      location = item.location.nil? ? "Location: TBD" : item.location
+      html << "<h3>#{item.name}</h3>"
+      html << (end_time.nil? ? "<p>#{start_time} | #{location}</p>" : "<p>#{start_time} - #{end_time} | #{location}</p>") unless start_time == end_time
+      counter += 1
+      if counter == 5
+        html << "</td>"
+        html << "<td>"
+      end
+    end
+    html << "</td></tr></table>"
     return html.join("")
   end
 
